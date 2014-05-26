@@ -17,6 +17,8 @@
 import os
 import sys
 import web
+import threading
+
 from web.httpserver import WSGIServer
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -32,6 +34,8 @@ from nailgun.middleware.static import StaticMiddleware
 from nailgun.settings import settings
 from nailgun.urls import urls
 
+from nailgun.plugins import hooks
+from nailgun.plugin_interface import INGBackgroundTask
 
 def build_app(db_driver=None):
     """Build app and disable debug mode in case of production
@@ -67,10 +71,16 @@ def run_server(func, server_address=('0.0.0.0', 8080)):
     server = WSGIServer(server_address, func)
     print('http://%s:%d/' % server_address)
 
+    for hook in hooks(INGBackgroundTask):
+        threading.Thread(None, hook.run)
+
     try:
         server.start()
     except (KeyboardInterrupt, SystemExit):
         server.stop()
+    finally:
+        for hook in hooks(INGBackgroundTask):
+            hook.stop()
 
 
 def appstart():
